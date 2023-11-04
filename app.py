@@ -47,18 +47,39 @@ def create_app(config=None):
             return _corsify_actual_response(response)
         else:
             raise RuntimeError("Weird - don't know how to handle method {}".format(request.method))
-        
-    @app.route("/api/recommend", methods=["POST", "OPTIONS"])
-    def recommend():
+                
+    @app.route('/api/recommend/outline', defaults={'temperature': None}, methods=["POST", "OPTIONS"])
+    @app.route("/api/recommend/outline/<temperature>", methods=["POST", "OPTIONS"])
+    def recommend_outline(temperature):
         
         if request.method == "OPTIONS":
             return _build_cors_preflight_response()
         elif request.method == "POST": 
             request.get_json(force=True)
             request_json = request.json
-            print(request_json)
-            print(request_json["setup"])
-            gpt_response = standard_bot.handle_suggestion_request(request_json["setup"], request_json["history"])
+            if (temperature):
+                gpt_response = standard_bot.handle_outline_request(request_json["setup"], float(temperature))
+            else:
+                gpt_response = standard_bot.handle_outline_request(request_json["setup"])
+            response = make_response(gpt_response)
+            return _corsify_actual_response(response)
+        else:
+            raise RuntimeError("Weird - don't know how to handle method {}".format(request.method))
+        
+
+    @app.route('/api/recommend', defaults={'temperature': None}, methods=["POST", "OPTIONS"])
+    @app.route("/api/recommend/<temperature>", methods=["POST", "OPTIONS"])
+    def recommend(temperature):
+        
+        if request.method == "OPTIONS":
+            return _build_cors_preflight_response()
+        elif request.method == "POST": 
+            request.get_json(force=True)
+            request_json = request.json
+            if (temperature):
+                gpt_response = standard_bot.handle_suggestion_request(request_json["setup"], request_json["history"], float(temperature))
+            else:
+                gpt_response = standard_bot.handle_suggestion_request(request_json["setup"], request_json["history"])
             response = make_response(gpt_response)
             return _corsify_actual_response(response)
         else:
