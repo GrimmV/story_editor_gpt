@@ -33,7 +33,7 @@ def create_app(config=None):
     limiter = Limiter(
         app=app,
         key_func=get_remote_address,  # This will use the user's IP to track the requests
-        default_limits=["20 per minute"]
+        default_limits=["6 per minute"]
     )
 
     @app.route("/api/test", methods=["GET", "OPTIONS"])
