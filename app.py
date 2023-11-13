@@ -4,13 +4,14 @@ from InteractiveBot import InteractiveBot
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from waitress import serve
-
 # import warnings
 # warnings.filterwarnings("ignore")
 
 # Prepare environment variables
 from dotenv import load_dotenv
 import os
+import logging
+logging.basicConfig(filename='logging.log', level=logging.DEBUG)
 
 load_dotenv()
 

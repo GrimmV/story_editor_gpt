@@ -5,8 +5,14 @@ from langchain.prompts import ChatPromptTemplate
 from langchain.output_parsers import StructuredOutputParser
 from langchain.memory import ConversationSummaryBufferMemory
 from langchain.chains import LLMChain
+from langchain.callbacks import get_openai_callback
 import os
 from defined_texts import intro, outline_intro
+import logging
+import datetime
+
+# number of most recent text snippets that will not be added in the summary, in the case it is too long.
+lookback_history = 2
 
 class InteractiveBot():
 
@@ -58,10 +64,11 @@ class InteractiveBot():
                 {format_instructions}
                 
                 Die bisherige Geschichte lässt sich folgendermaßen zusammenfassen: {summary}\
+                Die letzten zwei Aussagen sind: {last_messages}
             """
         )
 
-        self.memory = ConversationSummaryBufferMemory(llm=self.llm, max_token_limit=200, ai_prefix="Nächster Vorschlag", human_prefix="Bisherige Konversation")
+        self.memory = ConversationSummaryBufferMemory(llm=self.llm, max_token_limit=1000, ai_prefix="Nächster Vorschlag", human_prefix="Bisherige Konversation")
         self.conversation = []
         
         self.outline_chain = LLMChain(
@@ -97,6 +104,8 @@ class InteractiveBot():
         self.initial_suggestion_chain.llm.temperature = temp
 
     def handle_suggestion_request(self, setup, story_history, temp:float=None):
+        my_time = datetime.datetime.now()
+        logging.info("{}: handled suggestion request at story length: {}".format(my_time, len(story_history) if story_history else None))
 
         if not story_history:
             return self.initial_suggestion(setup, temp)
@@ -104,17 +113,22 @@ class InteractiveBot():
             return self.make_suggestion(setup, story_history, temp)
         
     def handle_outline_request(self, setup, temp:float=None):
+
+        my_time = datetime.datetime.now()
+        logging.info("{}: handled outline request".format(my_time))
         
         if (temp == None):
             self.initial_suggestion_chain.llm.temperature = self.default_temperature
         else:
             self.initial_suggestion_chain.llm.temperature = temp
 
-        raw_output = self.outline_chain.run({
-            "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
-            "employerInfo": setup["employerInfo"], "employee": setup["employee"], "employeeInfo": setup["employeeInfo"],
-            "format_instructions": self.outline_format_instructions
-        })
+        with get_openai_callback() as cb:
+            raw_output = self.outline_chain.run({
+                "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
+                "employerInfo": setup["employerInfo"], "employee": setup["employee"], "employeeInfo": setup["employeeInfo"],
+                "format_instructions": self.outline_format_instructions
+            })
+            logging.info(cb)
 
         parsed_output = self.parse_raw_outline_output(raw_output)
 
@@ -128,14 +142,17 @@ class InteractiveBot():
             self.initial_suggestion_chain.llm.temperature = temp
 
         self.memory.clear()
-        self.memory.save_context({"input": str(story_history)}, {"output": ""})
+        self.memory.save_context({"input": str(story_history[0:-lookback_history])}, {"output": ""})
+        last_messages = story_history[-lookback_history:]
 
-        raw_output = self.suggestion_chain.run({
-            "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
-            "employerInfo": setup["employerInfo"], "employee": setup["employee"], "employeeInfo": setup["employeeInfo"],
-            "outline": setup["outline"], "format_instructions": self.format_instructions, 
-            "summary": self.memory.load_memory_variables({})["history"]
-        })
+        with get_openai_callback() as cb:
+            raw_output = self.suggestion_chain.run({
+                "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
+                "employerInfo": setup["employerInfo"], "employee": setup["employee"], "employeeInfo": setup["employeeInfo"],
+                "outline": setup["outline"], "format_instructions": self.format_instructions, 
+                "summary": self.memory.load_memory_variables({})["history"], "last_messages": last_messages
+            })
+            logging.info(cb)
         parsed_output = self.parse_raw_output(raw_output)
 
         return parsed_output
@@ -147,11 +164,13 @@ class InteractiveBot():
         else:
             self.initial_suggestion_chain.llm.temperature = temp
 
-        raw_output = self.initial_suggestion_chain.run({
-            "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
-            "employerInfo": setup["employerInfo"], "employee": setup["employee"], "employeeInfo": setup["employeeInfo"],
-            "outline": setup["outline"], "format_instructions": self.format_instructions
-        })
+        with get_openai_callback() as cb:
+            raw_output = self.initial_suggestion_chain.run({
+                "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
+                "employerInfo": setup["employerInfo"], "employee": setup["employee"], "employeeInfo": setup["employeeInfo"],
+                "outline": setup["outline"], "format_instructions": self.format_instructions
+            })
+            logging.info(cb)
         parsed_output = self.parse_raw_output(raw_output)
 
         return parsed_output
