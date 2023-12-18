@@ -78,9 +78,9 @@ def create_app(config=None):
             request.get_json(force=True)
             request_json = request.json
             if (temperature):
-                gpt_response = standard_bot.handle_suggestion_request(request_json["setup"], request_json["history"], float(temperature))
+                gpt_response = standard_bot.handle_suggestion_request(request_json["setup"], request_json["history"], request_json["character_choice"], float(temperature))
             else:
-                gpt_response = standard_bot.handle_suggestion_request(request_json["setup"], request_json["history"])
+                gpt_response = standard_bot.handle_suggestion_request(request_json["setup"], request_json["history"], request_json["character_choice"])
             response = make_response(gpt_response)
             return _corsify_actual_response(response)
         else:

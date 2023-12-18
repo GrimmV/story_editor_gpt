@@ -53,6 +53,18 @@ class InteractiveBot():
                     sowie den Namen des Charakters und den Ort, an dem sich dieser befindet, um die Geschichte zu beginnen.\
 
                 {format_instructions}
+
+            """
+        )
+
+        self.initial_prompt_w_char = ChatPromptTemplate.from_template(
+            intro + """                    
+                Gib einen einzelnen Textabschnitt an, \
+                    sowie den Namen des Charakters und den Ort, an dem sich dieser befindet, um die Geschichte zu beginnen.\
+
+                {format_instructions}
+
+                Der Textabschnitt wird von {character_choice} gesprochen.
             """
         )
     
@@ -65,6 +77,20 @@ class InteractiveBot():
                 
                 Die bisherige Geschichte lässt sich folgendermaßen zusammenfassen: {summary}\
                 Die letzten zwei Aussagen sind: {last_messages}
+                
+            """
+        )
+        self.prompt_w_char = ChatPromptTemplate.from_template(
+            intro + """                    
+                Gib einen einzelnen Textabschnitt an, wie ein anderer Charakter auf die Aussage reagiert oder der alte Charakter dessen Gedanken fortführt, \
+                    sowie den Namen des Charakters und den Ort, an dem sich dieser befindet.
+
+                {format_instructions}
+                
+                Die bisherige Geschichte lässt sich folgendermaßen zusammenfassen: {summary}\
+                Die letzten zwei Aussagen sind: {last_messages}
+                
+                Der Textabschnitt wird von {character_choice} gesprochen.
             """
         )
 
@@ -83,9 +109,21 @@ class InteractiveBot():
             verbose=True
         )
 
+        self.suggestion_chain_w_char = LLMChain(
+            llm=self.llm,
+            prompt=self.prompt_w_char,
+            verbose=True
+        )
+
         self.initial_suggestion_chain = LLMChain(
             llm=self.llm,
             prompt=self.initial_prompt,
+            verbose=True
+        )
+
+        self.initial_suggestion_w_char = LLMChain(
+            llm=self.llm,
+            prompt=self.initial_prompt_w_char,
             verbose=True
         )
 
@@ -103,14 +141,14 @@ class InteractiveBot():
         self.suggestion_chain.llm.temperature = temp
         self.initial_suggestion_chain.llm.temperature = temp
 
-    def handle_suggestion_request(self, setup, story_history, temp:float=None):
+    def handle_suggestion_request(self, setup, story_history, character_choice:str=None, temp:float=None):
         my_time = datetime.datetime.now()
         logging.info("{}: handled suggestion request at story length: {}".format(my_time, len(story_history) if story_history else None))
 
         if not story_history:
-            return self.initial_suggestion(setup, temp)
+            return self.initial_suggestion(setup, character_choice, temp)
         else:
-            return self.make_suggestion(setup, story_history, temp)
+            return self.make_suggestion(setup, story_history, character_choice, temp)
         
     def handle_outline_request(self, setup, temp:float=None):
 
@@ -134,7 +172,7 @@ class InteractiveBot():
 
         return parsed_output
 
-    def make_suggestion(self, setup, story_history, temp:float=None):
+    def make_suggestion(self, setup, story_history, character_choice:str=None, temp:float=None):
         
         if (temp == None):
             self.initial_suggestion_chain.llm.temperature = self.default_temperature
@@ -146,18 +184,26 @@ class InteractiveBot():
         last_messages = story_history[-lookback_history:]
 
         with get_openai_callback() as cb:
-            raw_output = self.suggestion_chain.run({
-                "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
-                "employerInfo": setup["employerInfo"], "employee": setup["employee"], "employeeInfo": setup["employeeInfo"],
-                "outline": setup["outline"], "format_instructions": self.format_instructions, 
-                "summary": self.memory.load_memory_variables({})["history"], "last_messages": last_messages
-            })
+            if character_choice:
+                raw_output = self.suggestion_chain_w_char.run({
+                    "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
+                    "employerInfo": setup["employerInfo"], "employee": setup["employee"], "employeeInfo": setup["employeeInfo"],
+                    "outline": setup["outline"], "format_instructions": self.format_instructions, 
+                    "summary": self.memory.load_memory_variables({})["history"], "last_messages": last_messages, "character_choice": character_choice
+                })
+            else:
+                raw_output = self.suggestion_chain.run({
+                    "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
+                    "employerInfo": setup["employerInfo"], "employee": setup["employee"], "employeeInfo": setup["employeeInfo"],
+                    "outline": setup["outline"], "format_instructions": self.format_instructions, 
+                    "summary": self.memory.load_memory_variables({})["history"], "last_messages": last_messages
+                })
             logging.info(cb)
         parsed_output = self.parse_raw_output(raw_output)
 
         return parsed_output
     
-    def initial_suggestion(self, setup, temp:float=None):
+    def initial_suggestion(self, setup, character_choice:str=None, temp:float=None):
 
         if (temp == None):
             self.initial_suggestion_chain.llm.temperature = self.default_temperature
@@ -165,11 +211,18 @@ class InteractiveBot():
             self.initial_suggestion_chain.llm.temperature = temp
 
         with get_openai_callback() as cb:
-            raw_output = self.initial_suggestion_chain.run({
-                "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
-                "employerInfo": setup["employerInfo"], "employee": setup["employee"], "employeeInfo": setup["employeeInfo"],
-                "outline": setup["outline"], "format_instructions": self.format_instructions
-            })
+            if character_choice:
+                raw_output = self.initial_suggestion_w_char.run({
+                    "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
+                    "employerInfo": setup["employerInfo"], "employee": setup["employee"], "employeeInfo": setup["employeeInfo"],
+                    "outline": setup["outline"], "format_instructions": self.format_instructions, "character_choice": character_choice
+                })
+            else:
+                raw_output = self.initial_suggestion_chain.run({
+                    "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
+                    "employerInfo": setup["employerInfo"], "employee": setup["employee"], "employeeInfo": setup["employeeInfo"],
+                    "outline": setup["outline"], "format_instructions": self.format_instructions
+                })
             logging.info(cb)
         parsed_output = self.parse_raw_output(raw_output)
 
