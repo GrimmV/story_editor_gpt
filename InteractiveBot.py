@@ -28,8 +28,8 @@ class InteractiveBot():
             openai_api_version="2023-05-15"
         )
 
-        outline_schema_context = ResponseSchema(name="Kontext", description="Ein Vorschlag für den Kontext der Geschichte auf Deutsch. 30 - 50 Wörter.")
-        outline_schema_decisionpoint = ResponseSchema(name="Entscheidungspunkt", description="Erklärung des Entscheidungspunkts der Geschichte auf Deutsch. Circa 30 Wörter.")
+        outline_schema_context = ResponseSchema(name="Kontext", description="Ein Vorschlag für den Kontext der Geschichte. 30 - 50 Wörter.")
+        outline_schema_decisionpoint = ResponseSchema(name="Entscheidungspunkt", description="Erklärung des Entscheidungspunkts der Geschichte. Circa 30 Wörter.")
         self.outline_output_parser = StructuredOutputParser.from_response_schemas([outline_schema_context, outline_schema_decisionpoint])
         self.outline_format_instructions = self.outline_output_parser.get_format_instructions()
 
@@ -161,6 +161,7 @@ class InteractiveBot():
             self.initial_suggestion_chain.llm.temperature = temp
 
         with get_openai_callback() as cb:
+            print(self.outline_format_instructions)
             raw_output = self.outline_chain.run({
                 "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
                 "employerInfo": setup["employerInfo"], "employee": setup["employee"], "employeeInfo": setup["employeeInfo"],
@@ -184,6 +185,7 @@ class InteractiveBot():
         last_messages = story_history[-lookback_history:]
 
         with get_openai_callback() as cb:
+            print(self.format_instructions)
             if character_choice:
                 raw_output = self.suggestion_chain_w_char.run({
                     "workArea": setup["workArea"] if setup["workArea"] else "Reinigungsarbeiten", "employer": setup["employer"],
@@ -209,7 +211,7 @@ class InteractiveBot():
             self.initial_suggestion_chain.llm.temperature = self.default_temperature
         else:
             self.initial_suggestion_chain.llm.temperature = temp
-
+        print(self.format_instructions)
         with get_openai_callback() as cb:
             if character_choice:
                 raw_output = self.initial_suggestion_w_char.run({

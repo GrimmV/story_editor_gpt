@@ -16,11 +16,12 @@ logging.basicConfig(filename='logging.log', level=logging.DEBUG)
 load_dotenv()
 
 CURRENT_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+CURRENT_OPENAI_BASE = os.getenv("OPENAI_API_BASE")
 
 os.environ['OPENAI_API_KEY'] = CURRENT_OPENAI_API_KEY
 os.environ["OPENAI_API_TYPE"] = "azure"
 os.environ["OPENAI_API_VERSION"] = "2023-05-15"
-os.environ["OPENAI_API_BASE"] = "https://nextvisionopenai.openai.azure.com"
+os.environ["OPENAI_API_BASE"] = CURRENT_OPENAI_BASE
 os.environ["OPENAI_DEPLOYMENT_NAME"] = "GPT35Turbo"
 os.environ["OPENAI_MODEL_NAME"] = "gpt-3.5-turbo"
 
